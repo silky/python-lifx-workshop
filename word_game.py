@@ -8,19 +8,23 @@ import spacy
 import tqdm
 
 
-our_lights = [ "GraceHopper"
-             , "SophieWilson"
-             , "MargaretHamilton"
-             , "AdeleGoldberg"
+our_lights = [ "A1", "A2", "A3", "A4", "A5"
+             , "A6", "A7", "A8", "A9", "A10"
              ]
 
 
 def setup ():
-    def attempt_setup (): 
+    def attempt_setup ():
         lan    = LifxLAN()
-        lights = lan.get_devices_by_name(our_lights).get_device_list()
-        lights = sorted(lights, key=lambda x: x.get_label())
+        # lights = lan.get_devices_by_name(our_lights).get_device_list()
+        lights = lan.get_lights()
+        lights = sorted(lights, key=lambda x: int(x.get_label().replace("A", "")))
         names  = [ l.get_label() for l in lights ]
+
+        print("Found the following lights:")
+        for name in names:
+            print(f"  - {name}")
+
         return lights
 
     k = 0
@@ -42,7 +46,7 @@ def play ():
     print("We're ready to play the LifX Light Speaking Game!")
 
     while True:
-        print("What would you like to say?")
+        print("What would you like to say? I like long complex sentences!")
         x = input("> ")
 
         if x == "" or x is None:
@@ -50,31 +54,80 @@ def play ():
 
         encoded = nlp(x)
         vector  = encoded.vector
+
+        # Filter:
+        # vector = [ v for v in vector if abs(v) > 2]
+        vector = [ v for k,v in enumerate(vector) if k % 20 == 0]
+
         delta   = 65535 / (max(vector) - min(vector))
         scaled  = delta * (vector - min(vector))
         scaled  = scaled.astype(np.int64)
 
+
         print("")
-        print(f"Saying ... : {x}")
-        play_on_lights(scaled, lights)
+        print(f"Displaying ... (please wait until I'm finished!) : {x}")
+        #
+        # play_on_lights_in_chunks(scaled, lights)
+        play_on_lights_following(scaled, lights)
+
         print("")
 
 
-def play_on_lights (vector, lights):
+def play_on_lights_following (vector, lights):
+    # v = np.array([ 500, 15000, 35000, 55000 ])
+    # vector = np.hstack( [v for k in range(0, len(vector) // 4)] )
+
+    n = len(vector)
+
+    temps = np.array([ 1000*(k+1) for k in range(9) ])
+    temps = np.hstack( [temps, temps[::1][1:] ] )
+    temps = np.hstack( [ temps for k in range(int(np.ceil(n/len(temps)))) ] )
+
+
+    m = len(lights)
+    r = int(np.ceil(n / m))
+
+    wait = 1 / m
+
+    zeros = [ 0 for k in range(m-1) ]
+
+    new_vector = np.hstack( [zeros, vector, zeros] )
+
+    # names = [ l.get_label() for l in lights ]
+
+    # Reset them
+    for light in lights:
+        try_colour(light, 30000)
+
+
+    for k in tqdm.tqdm(range(len(new_vector))):
+        nums = new_vector[k:(k+m)]
+        our_temps = temps[k:(k+m)]
+        nums = nums[::-1]
+
+        for i, ((hue, new_temp), light) in enumerate(zip(zip(nums, our_temps), lights)):
+            # name = names[i]
+            # print(f" - setting {colour} on light {name}")
+            try_colour(light, hue, new_temp)
+            sleep(wait)
+
+
+def try_colour (light, hue, temp=10000):
+    new_colour = [ hue, 20000, 20000, temp ]
+    try:
+        light.set_color(new_colour, 500, True)
+    except:
+        # Don't do anything
+        return
+
+
+def play_on_lights_in_chunks (vector, lights):
     n = len(vector)
     m = len(lights)
     r = int(np.ceil(n / m))
-    
+
     wait = 1 / m
 
-    def try_colour (light, colour):
-        new_colour = [ colour, 20000, 20000, 10000 ]
-        try:
-            light.set_color(new_colour, 500, True)
-        except:
-            # Don't do anything
-            return
-    
     for light in lights:
         try_colour(light, 30000)
 
@@ -88,8 +141,7 @@ def play_on_lights (vector, lights):
 
 if __name__ == "__main__":
     try:
-        play()  
+        play()
     except EOFError as e:
         print("")
         print("Thanks for playing!")
-
