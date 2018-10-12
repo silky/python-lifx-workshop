@@ -116,7 +116,8 @@ def play_on_lights_following (vector, lights):
 
     wait = 1 / m
 
-    zeros = [ 0 for k in range(m-1) ]
+    reset_colour = 55452 # Magenta
+    zeros = [ reset_colour for k in range(m-1) ]
 
     new_vector = np.hstack( [zeros, vector, zeros] )
 
@@ -124,9 +125,9 @@ def play_on_lights_following (vector, lights):
 
     # Reset them
     def reset ():
-        sleep(0.5)
         for light in lights:
-            try_colour(light, 30000)
+            try_colour(light, reset_colour)
+        sleep(0.5)
 
     reset()
 
@@ -148,7 +149,7 @@ def try_colour (light, hue, temp=10000):
     # Over-ride the temperature
     #
     # temp = 3000
-    new_colour = [ hue, 60000, 20000, temp ]
+    new_colour = [ hue, 65535, 20000, temp ]
     try:
         light.set_color(new_colour, 500, True)
     except:
