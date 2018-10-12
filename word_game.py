@@ -25,6 +25,8 @@ def setup ():
         for name in names:
             print(f"  - {name}")
 
+        # assert len(lights) == 10, "We need 10 lights"
+
         return lights
 
     k = 0
@@ -52,25 +54,50 @@ def play ():
         if x == "" or x is None:
             continue
 
-        encoded = nlp(x)
-        vector  = encoded.vector
-
-        # Filter:
-        # vector = [ v for v in vector if abs(v) > 2]
-        vector = [ v for k,v in enumerate(vector) if k % 20 == 0]
-
-        delta   = 65535 / (max(vector) - min(vector))
-        scaled  = delta * (vector - min(vector))
-        scaled  = scaled.astype(np.int64)
-
+        # scaled = compute_vector_spacy(x)
+        scaled = compute_vector_alphabet(x)
 
         print("")
         print(f"Displaying ... (please wait until I'm finished!) : {x}")
-        #
+        
         # play_on_lights_in_chunks(scaled, lights)
         play_on_lights_following(scaled, lights)
 
         print("")
+
+
+letters = [ chr(x) for x in range( ord("a"), ord("z") + 1 ) ]
+
+
+def compute_vector_alphabet (sentence):
+    """
+    """
+    lower = sentence.lower()
+    keep  = [ x for x in lower if x in letters ]
+
+    def get_numbers (msg):
+        max_    = 65535
+        step    = max_ / 26
+        colours = [ int((ord(x) - ord('a'))*step) for x in msg ]
+        return colours
+
+    return get_numbers(keep)
+
+
+
+def compute_vector_spacy (sentence):
+    encoded = nlp(sentence)
+    vector  = encoded.vector
+
+    # Filter:
+    # vector = [ v for v in vector if abs(v) > 2]
+    vector = [ v for k,v in enumerate(vector) if k % 20 == 0]
+
+    delta   = 65535 / (max(vector) - min(vector))
+    scaled  = delta * (vector - min(vector))
+    scaled  = scaled.astype(np.int64)
+    
+    return scaled
 
 
 def play_on_lights_following (vector, lights):
@@ -96,9 +123,12 @@ def play_on_lights_following (vector, lights):
     # names = [ l.get_label() for l in lights ]
 
     # Reset them
-    for light in lights:
-        try_colour(light, 30000)
+    def reset ():
+        sleep(0.5)
+        for light in lights:
+            try_colour(light, 30000)
 
+    reset()
 
     for k in tqdm.tqdm(range(len(new_vector))):
         nums = new_vector[k:(k+m)]
@@ -107,13 +137,18 @@ def play_on_lights_following (vector, lights):
 
         for i, ((hue, new_temp), light) in enumerate(zip(zip(nums, our_temps), lights)):
             # name = names[i]
-            # print(f" - setting {colour} on light {name}")
+            # print(f" - setting {hue} on light {name}")
             try_colour(light, hue, new_temp)
             sleep(wait)
+    # reset()
 
 
 def try_colour (light, hue, temp=10000):
-    new_colour = [ hue, 20000, 20000, temp ]
+    #
+    # Over-ride the temperature
+    #
+    # temp = 3000
+    new_colour = [ hue, 60000, 20000, temp ]
     try:
         light.set_color(new_colour, 500, True)
     except:
